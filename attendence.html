@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Attendance Form</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 500px;
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    #formSection {
+      display: none;
+    }
+    #message {
+      text-align: center;
+      color: red;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <form id="attendanceForm">
+      <h2>Student Attendance Form</h2>
+      <div id="message">Please wait... getting location</div>
+      <div id="formSection">
+        <label>Full Name</label>
+        <input type="text" id="fullname" required>
+
+        <label>Batch</label>
+        <select id="batch" required>
+          <option value="">--Select--</option>
+          <option>BCADS21</option>
+          <option>BCADS22</option>
+          <option>BCADS23</option>
+          <option>BCADS24</option>
+          <option>BCADS25</option>
+          <option>BCADS26</option>
+          <option>BCADS27</option>
+        </select>
+
+        <label>University Roll Number</label>
+        <input type="text" id="universityrollnumber" required>
+
+        <label>Date</label>
+        <input type="text" id="date" readonly>
+
+        <label>Time</label>
+        <input type="text" id="time" readonly>
+
+        <label>Subject Name</label>
+        <input type="text" id="subject" required>
+
+        <button type="submit">Submit</button>
+      </div>
+    </form>
+  </div>
+
+<script>
+  // Update date & time every second
+  function updateDateTime() {
+    const dateField = document.getElementById("date");
+    const timeField = document.getElementById("time");
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-GB"); // dd/mm/yyyy
+    const timeStr = now.toLocaleTimeString("en-GB"); // HH:mm:ss
+    dateField.value = dateStr;
+    timeField.value = timeStr;
+  }
+  setInterval(updateDateTime, 1000);
+  updateDateTime();
+
+const lastSubmitted = localStorage.getItem("attendanceSubmittedAt");
+  if (lastSubmitted) {
+    const elapsed = (Date.now() - parseInt(lastSubmitted)) / 60000; // in minutes
+    if (elapsed < 5) {
+      document.body.innerHTML = `
+        <div class="container">
+          <h2 style="text-align:center;">⏳ Please wait</h2>
+          <p style="text-align:center;">You have already submitted attendance. Try again after ${Math.ceil(5 - elapsed)} minute(s).</p>
+        </div>`;
+      throw new Error("Form locked due to 5-minute limit");
+    }
+  }
+
+  // Location check
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const userLat = pos.coords.latitude;
+    const userLng = pos.coords.longitude;
+    const params = new URLSearchParams(window.location.search);
+
+    if (!params.has('lat') || !params.has('lng')) {
+      const newUrl = `${window.location.origin}${window.location.pathname}?lat=${userLat}&lng=${userLng}`;
+      window.history.replaceState({}, "", newUrl);
+      document.getElementById("message").innerText = "✅ Admin location saved. Share this link.";
+    } else {
+      const adminLat = parseFloat(params.get("lat"));
+      const adminLng = parseFloat(params.get("lng"));
+      const R = 6371000;
+      const dLat = (adminLat - userLat) * Math.PI / 180;
+      const dLon = (adminLng - userLng) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(userLat * Math.PI/180) * Math.cos(adminLat * Math.PI/180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+
+      if (distance <= 200) {
+        document.getElementById("formSection").style.display = "block";
+        document.getElementById("message").style.display = "none";
+      } else {
+        document.getElementById("message").innerText = `❌ Too far from admin: ${Math.round(distance)} meters.`;
+      }
+    }
+  }, () => {
+    document.getElementById("message").innerText = "⚠️ Unable to access location.";
+  });
+
+  // Submit form
+  document.getElementById("attendanceForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    const fullName = document.getElementById("fullname").value;
+    const batch = document.getElementById("batch").value;
+    const roll = document.getElementById("universityrollnumber").value;
+    const date = document.getElementById("date").value;
+    const time = document.getElementById("time").value;
+    const subject = document.getElementById("subject").value;
+
+    document.getElementById("formSection").innerHTML = `
+      <h3 style="color:green;text-align:center;">⏳ Submitting your form...</h3>
+      <p style="text-align:center;">Please wait while your attendance is being saved.</p>
+      <div style="text-align:center;"><img src="https://i.gifer.com/YCZH.gif" width="50"></div>
+    `;
+
+    // ✅ fetch with correct format
+    fetch("https://script.google.com/macros/s/AKfycbxZvjPesdtxVyKQjvbE_c_zzRHAmL6Ga7jkrf3malv8q2aj-SGIdNWH_IX9SNYsl2ES2A/exec", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        fullname: fullName,
+        batch: batch,
+        universityrollnumber: roll,
+        date: date,
+        time: time,
+        subject: subject
+      })
+    })
+    .then(res => res.text())
+    .then(data => {
+      if (data.trim().toLowerCase() === "success") {
+        document.getElementById("formSection").innerHTML = `
+          <h3 style="color:green;text-align:center;">✅ Attendance saved successfully!</h3>
+        `;
+      } else {
+        document.getElementById("formSection").innerHTML = `
+          <h3 style="color:red;text-align:center;">❌ Error: ${data}</h3>
+        `;
+      }
+    })
+    .catch(err => {
+      console.error("❌ Fetch error:", err);
+      document.getElementById("formSection").innerHTML = `
+        <h3 style="color:red;text-align:center;">❌ Failed to save data!</h3>
+        <p style="text-align:center;">Check your internet or try again.</p>
+      `;
+    });
+  });
+</script>
+</body>
+</html>
