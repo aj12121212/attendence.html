@@ -1,2 +1,2 @@
 # attendence.html
-Location based form
+Location based attendance form
